@@ -123,3 +123,4 @@
 - 前端视觉改动说明采用的当前设计输入或既有视觉证据，以及是否执行真机或等价验证。
 - 文档变更说明内容去向、验证结果与未决事项。
 - 提交日志遵循 Conventional Commits：`type(scope): 中文摘要 #999[如有]`。
+- 贡献纪律（分支模型、原子化提交与 PR 说明）见 [CONTRIBUTING.md](CONTRIBUTING.md)。
