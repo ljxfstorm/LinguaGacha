@@ -38,6 +38,17 @@ export const en_us_app = {
       max: "MAX",
     },
   },
+  proxy: {
+    mode: {
+      direct: "Direct",
+      system: "Follow system",
+      manual: "Manual",
+    },
+    link: {
+      translation: "translation path",
+      updates: "update path",
+    },
+  },
   action: {
     move_to_top: "Move to Top",
     move_to_bottom: "Move to Bottom",
@@ -227,6 +238,9 @@ export const en_us_app = {
     executable_files: "Executable files (*.exe)",
   },
   diagnostic: {
+    proxy: {
+      apply_failed: "Failed to apply the proxy settings; outbound requests use the system proxy …",
+    },
     agent: {
       web_search_provider_failed: "Web search provider request failed …",
       skill_load_failed: "Agent skill loading failed …",
@@ -258,6 +272,10 @@ export const en_us_app = {
     },
   },
   log: {
+    proxy: {
+      applied: "Outbound proxy applied: {MODE} …",
+      probe_result: "Proxy path test {LINK}: status {STATUS}, {ELAPSED} ms …",
+    },
     api_test_fail: "API test failed …",
     api_test_key: "Testing Key:",
     api_test_messages: "Task Prompts:",
