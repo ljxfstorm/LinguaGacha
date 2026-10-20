@@ -9,6 +9,8 @@ import type {
   SettingsSnapshotPayload,
 } from "@frontend/app/state/desktop-state-context";
 import { useBasicSettingsState } from "@frontend/pages/basic-settings-page/use-basic-settings-state";
+import type { ProxySettingValue } from "@domain/setting";
+import type { AppProxyRuntimeStatus } from "@shared/proxy";
 
 type RuntimeFixture = {
   settings_snapshot: SettingsSnapshot;
@@ -25,6 +27,21 @@ type RuntimeFixture = {
 type ToastFixture = {
   push_toast: ReturnType<typeof vi.fn>;
   run_modal_progress_toast: ReturnType<typeof vi.fn>;
+};
+
+const APPLIED_PROXY_STATUS: AppProxyRuntimeStatus = {
+  applied: true,
+  effectiveMode: "manual",
+  failureReason: null,
+};
+
+const MANUAL_PROXY: ProxySettingValue = {
+  mode: "manual",
+  protocol: "HTTP",
+  host: "127.0.0.1",
+  port: 7890,
+  username: "",
+  password: "",
 };
 
 const runtime_fixture: { current: RuntimeFixture } = {
@@ -126,6 +143,19 @@ function create_toast_fixture(): ToastFixture {
   };
 }
 
+/** 代理状态随设置读取返回，其余接口由各测试决定。 */
+function mock_api(update: (body: Record<string, unknown>) => unknown): void {
+  vi.mocked(api_fetch).mockImplementation(async (url, body) => {
+    if (url === "/api/settings/app") {
+      return {
+        settings: runtime_fixture.current.settings_snapshot,
+        proxyStatus: APPLIED_PROXY_STATUS,
+      } as never;
+    }
+    return update((body ?? {}) as Record<string, unknown>) as never;
+  });
+}
+
 describe("useBasicSettingsState", () => {
   let container: HTMLDivElement | null = null;
   let root: Root | null = null;
@@ -165,13 +195,16 @@ describe("useBasicSettingsState", () => {
   }
 
   it("语言保存失败从后端恢复设置，页面只提交一次命令", async () => {
-    vi.mocked(api_fetch).mockRejectedValue(new Error("prefilter_failed"));
+    mock_api(() => {
+      throw new Error("prefilter_failed");
+    });
     await render_hook();
     await act(async () => {
       await latest_state?.update_source_language("EN");
     });
     expect(latest_state?.snapshot.source_language).toBe("JA");
     expect(vi.mocked(api_fetch).mock.calls).toEqual([
+      ["/api/settings/app", {}],
       ["/api/settings/update", { source_language: "EN" }],
     ]);
     expect(toast_fixture.current.push_toast).toHaveBeenCalledExactlyOnceWith(
@@ -182,17 +215,35 @@ describe("useBasicSettingsState", () => {
 
   it("任务期间语言仍锁定，超时设置可以保存", async () => {
     runtime_fixture.current.runtime_snapshot = { revision: 1, owner: "agent" };
-    vi.mocked(api_fetch).mockResolvedValue({
-      settings: create_settings_snapshot({ request_timeout: 600 }),
-    } as never);
+    mock_api(() => ({ settings: create_settings_snapshot({ request_timeout: 600 }) }));
     await render_hook();
     await act(async () => {
       await latest_state?.update_target_language("EN");
       await latest_state?.update_request_timeout(600);
     });
     expect(vi.mocked(api_fetch).mock.calls).toEqual([
+      ["/api/settings/app", {}],
       ["/api/settings/update", { request_timeout: 600 }],
     ]);
     expect(latest_state?.snapshot.request_timeout).toBe(600);
+  });
+
+  it("代理保存整体提交，成功后重新读取下发状态", async () => {
+    mock_api(() => ({ settings: create_settings_snapshot({ proxy: MANUAL_PROXY }) }));
+    await render_hook();
+
+    let saved: Awaited<ReturnType<NonNullable<typeof latest_state>["save_proxy"]>> = null;
+    await act(async () => {
+      saved = (await latest_state?.save_proxy(MANUAL_PROXY)) ?? null;
+    });
+
+    expect(saved).toEqual(MANUAL_PROXY);
+    expect(vi.mocked(api_fetch).mock.calls).toEqual([
+      ["/api/settings/app", {}],
+      ["/api/settings/update", { proxy: MANUAL_PROXY }],
+      ["/api/settings/app", {}],
+    ]);
+    expect(latest_state?.snapshot.proxy).toEqual(MANUAL_PROXY);
+    expect(latest_state?.proxy_status).toEqual(APPLIED_PROXY_STATUS);
   });
 });
